@@ -1,6 +1,6 @@
 // plugin.js — runs inside Penpot. The `penpot` global is ONLY available here.
 
-penpot.ui.open("LaTeX Equations", "/", { width: 460, height: 740 });
+penpot.ui.open("LaTeX Equations", "index.html", { width: 460, height: 740 });
 
 let editingShape = null;
 const RECENTS_KEY = "latex-recents";
