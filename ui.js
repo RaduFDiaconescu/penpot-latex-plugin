@@ -4,7 +4,9 @@ const colorEl = $("color"), preview = $("preview"), insertBtn = $("insert");
 const status = $("status"), banner = $("banner"), newBtn = $("new");
 const libraryEl = $("library"), libraryToggle = $("libraryToggle"), panel = $("libraryPanel");
 
-let currentSvg = null, editing = false, suppressRender = false;
+const DEFAULT_SIZE = 36;
+let currentSvg = null, currentW = 0, currentH = 0;
+let editing = false, suppressRender = false;
 let docItems = [], recentItems = [];
 
 async function ready() {
@@ -14,16 +16,19 @@ async function ready() {
 }
 
 function buildSvg(latex) {
-  const fontSize = Math.max(8, Number(sizeEl.value) || 48);
+  const fontSize = Math.max(8, Number(sizeEl.value) || DEFAULT_SIZE);
   const color = colorEl.value || "#000000";
   const node = MathJax.tex2svg(latex, { display: display.checked });
   const svg = node.querySelector("svg");
   if (!svg) throw new Error("No SVG produced");
   const vb = svg.getAttribute("viewBox").split(/\s+/).map(Number);
-  svg.setAttribute("width", String((vb[2] / 1000) * fontSize));
-  svg.setAttribute("height", String((vb[3] / 1000) * fontSize));
+  const w = (vb[2] / 1000) * fontSize;
+  const h = (vb[3] / 1000) * fontSize;
+  svg.setAttribute("width", String(w));
+  svg.setAttribute("height", String(h));
   svg.removeAttribute("style");
-  return new XMLSerializer().serializeToString(svg).replace(/currentColor/g, color);
+  const out = new XMLSerializer().serializeToString(svg).replace(/currentColor/g, color);
+  return { svg: out, w, h };
 }
 
 async function thumbSvg(item) {
@@ -31,9 +36,7 @@ async function thumbSvg(item) {
   const node = MathJax.tex2svg(item.latex, { display: item.display !== false });
   const svg = node.querySelector("svg");
   if (!svg) return "";
-  svg.removeAttribute("style");
-  svg.removeAttribute("width");
-  svg.removeAttribute("height");
+  svg.removeAttribute("style"); svg.removeAttribute("width"); svg.removeAttribute("height");
   return new XMLSerializer().serializeToString(svg).replace(/currentColor/g, item.color || "#000000");
 }
 
@@ -47,8 +50,9 @@ async function render() {
   }
   try {
     await ready();
-    currentSvg = buildSvg(latex);
-    preview.innerHTML = currentSvg;
+    const built = buildSvg(latex);
+    currentSvg = built.svg; currentW = built.w; currentH = built.h;
+    preview.innerHTML = built.svg;
     insertBtn.disabled = false;
   } catch (e) {
     preview.innerHTML = '<span class="hint err">Could not render</span>';
@@ -66,7 +70,7 @@ function setEditing(on) {
 function loadValues(item) {
   suppressRender = true;
   input.value = item.latex || "";
-  sizeEl.value = item.size || "48";
+  sizeEl.value = item.size || String(DEFAULT_SIZE);
   colorEl.value = item.color || "#000000";
   display.checked = item.display !== false;
   suppressRender = false;
@@ -95,16 +99,13 @@ function groupHeader(text, withClear) {
 async function rowEl(item, kind, idx, deletable) {
   const row = document.createElement("div");
   row.className = "lib-row"; row.dataset.kind = kind; row.dataset.idx = String(idx);
-
   const thumb = document.createElement("span");
   thumb.className = "thumb";
   try { thumb.innerHTML = await thumbSvg(item); } catch (e) { thumb.textContent = "—"; }
   row.appendChild(thumb);
-
   const lab = document.createElement("span");
   lab.className = "lib-label"; lab.textContent = label(item.latex);
   row.appendChild(lab);
-
   if (deletable) {
     const del = document.createElement("button");
     del.type = "button"; del.className = "lib-del"; del.title = "Remove from recents";
@@ -139,18 +140,15 @@ document.addEventListener("keydown", (e) => { if (e.key === "Escape") closePanel
 
 panel.addEventListener("click", (e) => {
   if (e.target.closest(".lib-clear")) { parent.postMessage({ type: "clear-recents" }, "*"); return; }
-
   const row = e.target.closest(".lib-row");
   if (!row) return;
   const kind = row.dataset.kind, idx = Number(row.dataset.idx);
-
   if (e.target.closest(".lib-del")) {
     e.stopPropagation();
     const it = recentItems[idx];
     if (it) parent.postMessage({ type: "delete-recent", latex: it.latex }, "*");
     return;
   }
-
   if (kind === "doc") {
     const it = docItems[idx];
     if (it) parent.postMessage({ type: "select-shape", id: it.id }, "*");
@@ -168,8 +166,9 @@ input.addEventListener("input", () => { clearTimeout(t); t = setTimeout(render, 
 insertBtn.addEventListener("click", () => {
   if (!currentSvg) return;
   parent.postMessage({
-    type: "insert-svg", svg: currentSvg, latex: input.value.trim(),
-    size: sizeEl.value, color: colorEl.value, display: display.checked, replace: editing
+    type: "insert-svg", svg: currentSvg, w: currentW, h: currentH,
+    latex: input.value.trim(), size: sizeEl.value, color: colorEl.value,
+    display: display.checked, replace: editing
   }, "*");
   status.textContent = editing ? "Updating…" : "Inserting…";
 });

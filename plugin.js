@@ -1,4 +1,4 @@
-// plugin.js — runs inside Penpot. The `penpot` global is ONLY available here.
+// plugin.js — runs inside Penpot.
 
 penpot.ui.open("LaTeX Equations", "index.html", { width: 460, height: 740 });
 
@@ -13,7 +13,7 @@ function readLatexShape(shape) {
     if (!latex) return null;
     return {
       latex,
-      size: shape.getPluginData("size") || "48",
+      size: shape.getPluginData("size") || "36",
       color: shape.getPluginData("color") || "#000000",
       display: shape.getPluginData("display") !== "false"
     };
@@ -70,40 +70,31 @@ async function sendLibrary() {
 
 function emitSelection() {
   const sel = penpot.selection || [];
-  if (sel.length !== 1) {
-    editingShape = null;
-    penpot.ui.sendMessage({ type: "clear-editing" });
-    penpot.ui.sendMessage({ type: "error", message: "Selected " + sel.length + " shapes." });
-    return;
+  if (sel.length === 1) {
+    const data = readLatexShape(sel[0]);
+    if (data) {
+      editingShape = sel[0];
+      penpot.ui.sendMessage({ type: "load-equation", ...data });
+      return;
+    }
   }
-  const shape = sel[0];
-  const data = readLatexShape(shape);
-  if (data) {
-    editingShape = shape;
-    penpot.ui.sendMessage({ type: "load-equation", ...data });
-  } else {
-    editingShape = null;
-    penpot.ui.sendMessage({ type: "clear-editing" });
-    let raw = "";
-    try { raw = shape.getPluginData("latex"); } catch (e) { raw = "getPluginData threw: " + e; }
-    penpot.ui.sendMessage({
-      type: "error",
-      message: "Selected '" + (shape.name || shape.type) + "', latex data = '" + raw + "'"
-    });
-  }
+  editingShape = null;
+  penpot.ui.sendMessage({ type: "clear-editing" });
 }
 
 penpot.on("selectionchange", emitSelection);
 emitSelection();
 sendLibrary();
 
-function applyMeta(shape, msg) {
+function applyMeta(shape, msg, baseW, baseH) {
   shape.name = "LaTeX: " + (msg.latex || "equation");
   try {
     shape.setPluginData("latex", msg.latex || "");
     shape.setPluginData("size", String(msg.size || ""));
     shape.setPluginData("color", String(msg.color || ""));
     shape.setPluginData("display", msg.display ? "true" : "false");
+    shape.setPluginData("baseW", String(baseW));
+    shape.setPluginData("baseH", String(baseH));
   } catch (e) {}
 }
 
@@ -152,16 +143,34 @@ penpot.ui.onMessage(async (msg) => {
       }
 
       const replacing = msg.replace && editingShape;
-      let x, y;
-      if (replacing) { try { x = editingShape.x; y = editingShape.y; } catch (e) {} }
-      if (x === undefined) {
-        const c = (penpot.viewport && penpot.viewport.center) || { x: 0, y: 0 };
-        x = c.x - group.width / 2;
-        y = c.y - group.height / 2;
-      }
-      group.x = x; group.y = y;
 
-      applyMeta(group, msg);
+      // Intended pixel size from the UI — Penpot otherwise sizes from raw viewBox units.
+      const baseW = Number(msg.w) > 0 ? Number(msg.w) : group.width;
+      const baseH = Number(msg.h) > 0 ? Number(msg.h) : group.height;
+
+      // On replace, keep the old equation's on-canvas scale and its center point.
+      let scale = 1, ocx, ocy;
+      if (replacing) {
+        try {
+          const onw = parseFloat(editingShape.getPluginData("baseW"));
+          if (onw > 0 && editingShape.width > 0) scale = editingShape.width / onw;
+          ocx = editingShape.x + editingShape.width / 2;
+          ocy = editingShape.y + editingShape.height / 2;
+        } catch (e) {}
+      }
+
+      try { group.resize(baseW * scale, baseH * scale); } catch (e) {}
+
+      if (replacing && ocx !== undefined) {
+        group.x = ocx - group.width / 2;
+        group.y = ocy - group.height / 2;
+      } else {
+        const c = (penpot.viewport && penpot.viewport.center) || { x: 0, y: 0 };
+        group.x = c.x - group.width / 2;
+        group.y = c.y - group.height / 2;
+      }
+
+      applyMeta(group, msg, baseW, baseH);
       if (replacing) { try { editingShape.remove(); } catch (e) {} }
 
       editingShape = group;
