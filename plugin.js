@@ -70,16 +70,27 @@ async function sendLibrary() {
 
 function emitSelection() {
   const sel = penpot.selection || [];
-  if (sel.length === 1) {
-    const data = readLatexShape(sel[0]);
-    if (data) {
-      editingShape = sel[0];
-      penpot.ui.sendMessage({ type: "load-equation", ...data });
-      return;
-    }
+  if (sel.length !== 1) {
+    editingShape = null;
+    penpot.ui.sendMessage({ type: "clear-editing" });
+    penpot.ui.sendMessage({ type: "error", message: "Selected " + sel.length + " shapes." });
+    return;
   }
-  editingShape = null;
-  penpot.ui.sendMessage({ type: "clear-editing" });
+  const shape = sel[0];
+  const data = readLatexShape(shape);
+  if (data) {
+    editingShape = shape;
+    penpot.ui.sendMessage({ type: "load-equation", ...data });
+  } else {
+    editingShape = null;
+    penpot.ui.sendMessage({ type: "clear-editing" });
+    let raw = "";
+    try { raw = shape.getPluginData("latex"); } catch (e) { raw = "getPluginData threw: " + e; }
+    penpot.ui.sendMessage({
+      type: "error",
+      message: "Selected '" + (shape.name || shape.type) + "', latex data = '" + raw + "'"
+    });
+  }
 }
 
 penpot.on("selectionchange", emitSelection);
