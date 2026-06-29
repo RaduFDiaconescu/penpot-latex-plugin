@@ -1,0 +1,8 @@
+{
+  "name": "LaTeX Equations",
+  "description": "Render LaTeX math as editable vector shapes.",
+  "version": 2,
+  "code": "plugin.js",
+  "permissions": ["content:write", "allow:localstorage"]
+}
+

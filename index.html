@@ -1,0 +1,54 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>LaTeX Equations</title>
+
+  <script>
+    window.MathJax = {
+      loader: { load: ["input/tex", "output/svg", "[tex]/ams"] },
+      tex: { packages: { "[+]": ["ams"] } },
+      svg: { fontCache: "none" },
+      startup: { typeset: false }
+    };
+  </script>
+  <script src="https://cdn.jsdelivr.net/npm/mathjax@3/es5/tex-svg.js" async></script>
+
+  <link rel="stylesheet" href="ui.css" />
+</head>
+<body>
+  <div class="wrap">
+    <div class="library" id="library">
+      <button type="button" class="library-toggle" id="libraryToggle" aria-expanded="false">
+        <span>📚 Saved &amp; recent equations</span>
+        <span class="chev">▾</span>
+      </button>
+      <div class="library-panel" id="libraryPanel" hidden></div>
+    </div>
+
+    <div class="banner" id="banner" style="display:none;">
+      <span>✎ Editing selected equation</span>
+      <button id="new" class="link">New equation</button>
+    </div>
+
+    <label class="field">
+      <span>LaTeX</span>
+      <textarea id="input" rows="4" placeholder="\frac{-b \pm \sqrt{b^2-4ac}}{2a}"></textarea>
+    </label>
+
+    <div class="row">
+      <label class="inline"><input type="checkbox" id="display" checked /> Display mode</label>
+      <label class="inline">Size <input type="number" id="size" value="48" min="8" max="400" /></label>
+      <label class="inline">Color <input type="color" id="color" value="#000000" /></label>
+    </div>
+
+    <div class="preview" id="preview"><span class="hint">Preview appears here</span></div>
+
+    <button id="insert" disabled>Insert into Penpot</button>
+    <p class="status" id="status"></p>
+  </div>
+
+  <script src="ui.js"></script>
+</body>
+</html>
